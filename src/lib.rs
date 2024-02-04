@@ -84,6 +84,9 @@ turbo::go! {
         }
     }
     
+    // draw kitchen
+    sprite!("kitchen", 0, 0);
+
     // Draw mice
     for mouse in &state.mice {
         sprite!("mouse", mouse.position.x as i32 - 16, mouse.position.y as i32 - 16);
