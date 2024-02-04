@@ -27,6 +27,7 @@ turbo::init! {
         mouse_amount: u32,
         frame: u32,
         points: u32,
+        game_started: bool,
         game_over: bool
     } = {
         Self {
@@ -42,6 +43,7 @@ turbo::init! {
             frame: 0,
             mouse_amount: 60,
             points: 0,
+            game_started: false,
             game_over: false,
         }
     }
@@ -50,113 +52,123 @@ turbo::init! {
 turbo::go! {
     let mut state = GameState::load();
     
-    let crosshair_increment = 2.0;
-    
-    // Set background color
-    
-    if gamepad(0).left.pressed() {
-        state.crosshair_position.nudge_horizontal(-crosshair_increment);
-    } else if gamepad(0).right.pressed() {
-        state.crosshair_position.nudge_horizontal(crosshair_increment);
-    }
-    if gamepad(0).up.pressed() {
-        state.crosshair_position.nudge_vertical(-crosshair_increment);
-    } else if gamepad(0).down.pressed() {
-        state.crosshair_position.nudge_vertical(crosshair_increment);
-    }
-    
-    // add random mice
-    if state.frame % state.mouse_amount == 0 {
-        state.mice.push(Mouse {
-            position: Vec2::new((rand() % 256) as f32, 256.0),
-            speed: 1.0
-        });
-    }
-    
-    state.chef.move_chef();
-    
-    // update mouse amount
-    if rand() % 60*10 == 0 {
-        state.mouse_amount -= 1;
-    }
-
-    // Update mouse positions and drop dead ones
-    state.mice.retain_mut(|mouse| {
-        mouse.position.y -= mouse.speed;
-
+    if !state.game_started {
+        sprite!("start_menu", 0, 0);
+        text!("Press space to start", x = 50, y = 30, font = Font::L, color = 0xa04f6fff);
+        
         if gamepad(0).start.just_pressed() {
-            let dx = state.crosshair_position.x - mouse.position.x;
-            let dy = state.crosshair_position.y - mouse.position.y;
-            let distance = (dx * dx + dy * dy).sqrt();
-            if distance < 16.0 {
-                state.points += 1;
-                return false
-            } else {
-                return true
-            }
+            state.game_started = true;
+        }
+    } else {
+        let crosshair_increment = 2.0;
+        
+        // Set background color
+        
+        if gamepad(0).left.pressed() {
+            state.crosshair_position.nudge_horizontal(-crosshair_increment);
+        } else if gamepad(0).right.pressed() {
+            state.crosshair_position.nudge_horizontal(crosshair_increment);
+        }
+        if gamepad(0).up.pressed() {
+            state.crosshair_position.nudge_vertical(-crosshair_increment);
+        } else if gamepad(0).down.pressed() {
+            state.crosshair_position.nudge_vertical(crosshair_increment);
+        }
+        
+        // add random mice
+        if state.frame % state.mouse_amount == 0 {
+            state.mice.push(Mouse {
+                position: Vec2::new((rand() % 256) as f32, 256.0),
+                speed: 1.0
+            });
+        }
+        
+        state.chef.move_chef();
+        
+        // update mouse amount
+        if rand() % 60*10 == 0 {
+            state.mouse_amount -= 1;
         }
 
-        if mouse.position.y < 45.0 {
-            // check collision with chef
-            let dx = state.chef.position.x - mouse.position.x;
-            let dy = state.chef.position.y - mouse.position.y;
-            let distance = (dx * dx + dy * dy).sqrt();
+        // Update mouse positions and drop dead ones
+        state.mice.retain_mut(|mouse| {
+            mouse.position.y -= mouse.speed;
 
-            if distance < 20.0 {
-                if state.chef.lives == 0 {
-                    state.game_over = true;
+            if gamepad(0).start.just_pressed() {
+                let dx = state.crosshair_position.x - mouse.position.x;
+                let dy = state.crosshair_position.y - mouse.position.y;
+                let distance = (dx * dx + dy * dy).sqrt();
+                if distance < 16.0 {
+                    state.points += 1;
+                    return false
                 } else {
-                    state.chef.lives -= 1;
-                    state.chef.hurt = 24;
-
-                    if state.chef.lives == 0 {
-                        state.game_over = true;
-                    }
+                    return true
                 }
             }
-            false
-        } else {
-            true
-        }
-    });
 
-    // draw floor
-    for i in 0..8 {
-        for j in 0..8 {
-            sprite!("floor", i * 32, j * 32);
+            if mouse.position.y < 45.0 {
+                // check collision with chef
+                let dx = state.chef.position.x - mouse.position.x;
+                let dy = state.chef.position.y - mouse.position.y;
+                let distance = (dx * dx + dy * dy).sqrt();
+
+                if distance < 20.0 {
+                    if state.chef.lives == 0 {
+                        state.game_over = true;
+                    } else {
+                        state.chef.lives -= 1;
+                        state.chef.hurt = 24;
+
+                        if state.chef.lives == 0 {
+                            state.game_over = true;
+                        }
+                    }
+                }
+                false
+            } else {
+                true
+            }
+        });
+
+        // draw floor
+        for i in 0..8 {
+            for j in 0..8 {
+                sprite!("floor", i * 32, j * 32);
+            }
         }
+        
+        // draw kitchen
+        sprite!("kitchen", 0, 0);
+        
+        if state.game_over {
+            // game over text
+            text!("Game Over", x = 100, y = 132, font = Font::L, color = 0x0000000ff);
+        } else {
+            // Draw chef
+            if state.chef.hurt > 0 {
+                sprite!("hurt_chef", state.chef.position.x as i32 - 16, state.chef.position.y as i32 - 16, fps = fps::MEDIUM);
+                state.chef.hurt -= 1;
+            } else {
+                sprite!("chef", state.chef.position.x as i32 - 16, state.chef.position.y as i32 - 16, fps = fps::MEDIUM);
+            }
+
+            // Draw mice
+            for mouse in &state.mice {
+                sprite!("mouse", mouse.position.x as i32 - 16, mouse.position.y as i32 - 16, fps = fps::FAST);
+            }
+
+            // Draw simple crosshair
+            sprite!("crosshair", state.crosshair_position.x as i32 - 16, state.crosshair_position.y as i32 - 16);
+        }
+        
+        // render score
+        text!(&format!("Score: {}", state.points), x = 40, y = 3, font = Font::L, color = 0xd14cdaff);
+        
+        // render lives
+        text!(&format!("Lives: {}", state.chef.lives), x = 180, y = 3, font = Font::L, color = 0xd14cdaff);
+
     }
     
-    // draw kitchen
-    sprite!("kitchen", 0, 0);
-    
-    if state.game_over {
-        // game over text
-        text!("Game Over", x = 100, y = 132, font = Font::L, color = 0x0000000ff);
-    } else {
-        // Draw chef
-        if state.chef.hurt > 0 {
-            sprite!("hurt_chef", state.chef.position.x as i32 - 16, state.chef.position.y as i32 - 16, fps = fps::MEDIUM);
-            state.chef.hurt -= 1;
-        } else {
-            sprite!("chef", state.chef.position.x as i32 - 16, state.chef.position.y as i32 - 16, fps = fps::MEDIUM);
-        }
-
-        // Draw mice
-        for mouse in &state.mice {
-            sprite!("mouse", mouse.position.x as i32 - 16, mouse.position.y as i32 - 16, fps = fps::FAST);
-        }
-
-        // Draw simple crosshair
-        sprite!("crosshair", state.crosshair_position.x as i32 - 16, state.crosshair_position.y as i32 - 16);
-    }
-    
-    // render score
-    text!(&format!("Score: {}", state.points), x = 40, y = 3, font = Font::L, color = 0xd14cdaff);
-    
-    // render lives
-    text!(&format!("Lives: {}", state.chef.lives), x = 180, y = 3, font = Font::L, color = 0xd14cdaff);
-
     // Save game state for the next frame
     state.frame += 1;
     state.save();
