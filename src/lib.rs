@@ -21,8 +21,10 @@ turbo::init! {
         chef: struct Chef {
             position: Vec2,
             speed: f32,
-            lives: u32
+            lives: u32,
+            hurt: u32
         },
+        mouse_amount: u32,
         frame: u32,
         points: u32,
         game_over: bool
@@ -34,9 +36,11 @@ turbo::init! {
             chef: Chef {
                 position: Vec2::new(128.0, 32.0),
                 speed: 1.0,
-                lives: 3
+                lives: 3,
+                hurt: 0
             },
             frame: 0,
+            mouse_amount: 60,
             points: 0,
             game_over: false,
         }
@@ -62,7 +66,7 @@ turbo::go! {
     }
     
     // add random mice
-    if state.frame % 60 == 0 {
+    if state.frame % state.mouse_amount == 0 {
         state.mice.push(Mouse {
             position: Vec2::new((rand() % 256) as f32, 256.0),
             speed: 1.0
@@ -70,6 +74,11 @@ turbo::go! {
     }
     
     state.chef.move_chef();
+    
+    // update mouse amount
+    if rand() % 60*10 == 0 {
+        state.mouse_amount -= 1;
+    }
 
     // Update mouse positions and drop dead ones
     state.mice.retain_mut(|mouse| {
@@ -87,16 +96,22 @@ turbo::go! {
             }
         }
 
-        if mouse.position.y < 32.0 {
+        if mouse.position.y < 45.0 {
             // check collision with chef
             let dx = state.chef.position.x - mouse.position.x;
             let dy = state.chef.position.y - mouse.position.y;
             let distance = (dx * dx + dy * dy).sqrt();
 
-            if distance < 16.0 {
-                state.chef.lives -= 1;
+            if distance < 20.0 {
                 if state.chef.lives == 0 {
                     state.game_over = true;
+                } else {
+                    state.chef.lives -= 1;
+                    state.chef.hurt = 24;
+
+                    if state.chef.lives == 0 {
+                        state.game_over = true;
+                    }
                 }
             }
             false
@@ -116,9 +131,16 @@ turbo::go! {
     sprite!("kitchen", 0, 0);
     
     if state.game_over {
+        // game over text
+        text!("Game Over", x = 100, y = 132, font = Font::L, color = 0x0000000ff);
     } else {
         // Draw chef
-        sprite!("chef", state.chef.position.x as i32 - 16, state.chef.position.y as i32 - 16, fps = fps::MEDIUM);
+        if state.chef.hurt > 0 {
+            sprite!("hurt_chef", state.chef.position.x as i32 - 16, state.chef.position.y as i32 - 16, fps = fps::MEDIUM);
+            state.chef.hurt -= 1;
+        } else {
+            sprite!("chef", state.chef.position.x as i32 - 16, state.chef.position.y as i32 - 16, fps = fps::MEDIUM);
+        }
 
         // Draw mice
         for mouse in &state.mice {
@@ -130,10 +152,10 @@ turbo::go! {
     }
     
     // render score
-    text!(&format!("Score: {}", state.points), x = 20, y = 5, font = Font::L, color = 0xd14cdaff);
+    text!(&format!("Score: {}", state.points), x = 40, y = 3, font = Font::L, color = 0xd14cdaff);
     
     // render lives
-    text!(&format!("Lives: {}", state.chef.lives), x = 180, y = 5, font = Font::L, color = 0xd14cdaff);
+    text!(&format!("Lives: {}", state.chef.lives), x = 180, y = 3, font = Font::L, color = 0xd14cdaff);
 
     // Save game state for the next frame
     state.frame += 1;
@@ -199,7 +221,7 @@ impl Chef {
     
     fn speed_increase(&mut self) {
         if self.speed < 4.0 {
-            self.speed *= 1.1;
+            self.speed += 0.1;
         }
     }
 }
