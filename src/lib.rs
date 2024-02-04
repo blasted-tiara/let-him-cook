@@ -18,12 +18,20 @@ turbo::init! {
             position: Vec2,
             speed: f32
         }>,
+        chef: struct Chef {
+            position: Vec2,
+            speed: f32
+        },
         frame: u32
     } = {
         Self {
             crosshair_position: Vec2::new(128.0, 128.0),
             time: 30,
             mice: vec![],
+            chef: Chef {
+                position: Vec2::new(128.0, 32.0),
+                speed: 1.0
+            },
             frame: 0
         }
     }
@@ -86,10 +94,13 @@ turbo::go! {
     
     // draw kitchen
     sprite!("kitchen", 0, 0);
+    
+    // Draw chef
+    sprite!("chef", state.chef.position.x as i32 - 16, state.chef.position.y as i32 - 16, fps = fps::MEDIUM);
 
     // Draw mice
     for mouse in &state.mice {
-        sprite!("mouse", mouse.position.x as i32 - 16, mouse.position.y as i32 - 16);
+        sprite!("mouse", mouse.position.x as i32 - 16, mouse.position.y as i32 - 16, fps = fps::FAST);
     }
 
     // Draw simple crosshair
