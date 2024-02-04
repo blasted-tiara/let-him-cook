@@ -20,9 +20,12 @@ turbo::init! {
         }>,
         chef: struct Chef {
             position: Vec2,
-            speed: f32
+            speed: f32,
+            lives: u32
         },
-        frame: u32
+        frame: u32,
+        points: u32,
+        game_over: bool
     } = {
         Self {
             crosshair_position: Vec2::new(128.0, 128.0),
@@ -30,9 +33,12 @@ turbo::init! {
             mice: vec![],
             chef: Chef {
                 position: Vec2::new(128.0, 32.0),
-                speed: 1.0
+                speed: 1.0,
+                lives: 3
             },
-            frame: 0
+            frame: 0,
+            points: 0,
+            game_over: false,
         }
     }
 }
@@ -63,6 +69,8 @@ turbo::go! {
         });
     }
     
+    state.chef.move_chef();
+
     // Update mouse positions and drop dead ones
     state.mice.retain_mut(|mouse| {
         mouse.position.y -= mouse.speed;
@@ -72,13 +80,25 @@ turbo::go! {
             let dy = state.crosshair_position.y - mouse.position.y;
             let distance = (dx * dx + dy * dy).sqrt();
             if distance < 16.0 {
+                state.points += 1;
                 return false
             } else {
                 return true
             }
         }
 
-        if mouse.position.y < 0.0 {
+        if mouse.position.y < 32.0 {
+            // check collision with chef
+            let dx = state.chef.position.x - mouse.position.x;
+            let dy = state.chef.position.y - mouse.position.y;
+            let distance = (dx * dx + dy * dy).sqrt();
+
+            if distance < 16.0 {
+                state.chef.lives -= 1;
+                if state.chef.lives == 0 {
+                    state.game_over = true;
+                }
+            }
             false
         } else {
             true
@@ -95,17 +115,26 @@ turbo::go! {
     // draw kitchen
     sprite!("kitchen", 0, 0);
     
-    // Draw chef
-    sprite!("chef", state.chef.position.x as i32 - 16, state.chef.position.y as i32 - 16, fps = fps::MEDIUM);
+    if state.game_over {
+    } else {
+        // Draw chef
+        sprite!("chef", state.chef.position.x as i32 - 16, state.chef.position.y as i32 - 16, fps = fps::MEDIUM);
 
-    // Draw mice
-    for mouse in &state.mice {
-        sprite!("mouse", mouse.position.x as i32 - 16, mouse.position.y as i32 - 16, fps = fps::FAST);
+        // Draw mice
+        for mouse in &state.mice {
+            sprite!("mouse", mouse.position.x as i32 - 16, mouse.position.y as i32 - 16, fps = fps::FAST);
+        }
+
+        // Draw simple crosshair
+        sprite!("crosshair", state.crosshair_position.x as i32 - 16, state.crosshair_position.y as i32 - 16);
     }
-
-    // Draw simple crosshair
-    sprite!("crosshair", state.crosshair_position.x as i32 - 16, state.crosshair_position.y as i32 - 16);
     
+    // render score
+    text!(&format!("Score: {}", state.points), x = 20, y = 5, font = Font::L, color = 0xd14cdaff);
+    
+    // render lives
+    text!(&format!("Lives: {}", state.chef.lives), x = 180, y = 5, font = Font::L, color = 0xd14cdaff);
+
     // Save game state for the next frame
     state.frame += 1;
     state.save();
@@ -139,6 +168,38 @@ impl Vec2 {
             self.y = 0.0;
         } else if self.y > 256.0 {
             self.y = 256.0;
+        }
+    }
+}
+
+impl Chef {
+    fn move_chef(&mut self) {
+        if rand() % 60*4 == 0 {
+            self.direction_reverse();
+        }
+        
+        if rand() % 60*8 == 0 {
+            self.speed_increase();
+        }
+        
+        self.position.x += self.speed;
+        
+        if self.position.x < 0.0 {
+            self.position.x = 0.0;
+            self.direction_reverse();
+        } else if self.position.x > 255.0 {
+            self.position.x = 255.0;
+            self.direction_reverse();
+        }
+    }
+    
+    fn direction_reverse(&mut self) {
+        self.speed = -self.speed;
+    }
+    
+    fn speed_increase(&mut self) {
+        if self.speed < 4.0 {
+            self.speed *= 1.1;
         }
     }
 }
